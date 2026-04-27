@@ -1,0 +1,57 @@
+React Native та мобільна розробка.
+
+Android - операційна система з ядром на С та системною мовою Java
+JDK (Java Dev Kit) - інструментарій створення програм на Java 
+ Для роботи з React Native необхідно встановити JDK 17 (! не більше, не менше)
+ https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html
+Java може бути і швидше за все встановлена на ПК, для коректної роботи 
+ React Native слід створити (коригувати) системну змінну JAVA_HOME
+ ПКМ(Пуск) - Система - Додаткові налаштування системи - Змінні оточення
+  сторюємо або редагуємо змінну JAVA_HOME, даємо їй значення
+  C:\Program Files\Java\jdk-17.0.10 (скопіювати конкретний шлях під версію JDK)
+  Також редагуємо змінну Path, додаємо до неї значення 
+  C:\Program Files\Java\jdk-17.0.10\bin   або    %JAVA_HOME%\bin
+  
+Android SDK - інструментарій створення збірки під виконання (АРК), що 
+ включає код та ресурси (картинки, звуки, шрифти тощо) - можна скачати окремо,
+ можна отримати разом з Android Studio
+ 
+* За замовчанням Android Studio встановлює SDK, у т.ч. емулятор, до диску C
+Якщо є потреба змінити шляхи встановлення, то слід створити системні змінні 
+ANDROID_EMULATOR_HOME
+ANDROID_AVD_HOME
+деталі - на https://developer.android.com/tools/variables
+
+ 
+Android Studio - IDE, що включає як саму розробку (але не підтримує React Native)
+ а також емулятор - віртуальний смартфон для спрощення випробування програм. 
+ https://developer.android.com/studio
+ Створємо системну змінну ANDROID_HOME з шляхом до SDK
+ %LOCALAPPDATA%\Android\Sdk
+ Знов редагуємо змінну Path, додаємо 
+ %LOCALAPPDATA%\Android\Sdk\platform-tools
+ Запускаємо емулятор (стартове вікно - More actions - Virtual Device Manager)
+  якщо немає - створюємо новий 
+
+ 
+React Native
+Перевіти наявність NodeJs/npm
+Закладаємо ресурси та новий проєкт, інструкція -
+https://reactnative.dev/docs/getting-started-without-a-framework 
+Запускаємо термінал (або CMD), переходимо до директорії проєктів
+перевіряємо відсутність глобальних бібліотек
+> npm uninstall -g react-native-cli @react-native-community/cli
+створюємо новий проєкт
+> npx @react-native-community/cli@latest init ReactNativePv411
+відкриваємо його у Visual Studio Code
+
+FSD Feature Sliced Design
+Утворюємо у проєкті архітектуру, наприклад, FSD
+https://feature-sliced.design/
+- створюємо директорію src
+- у ній - створюємо базові директорії FSD (app, pages, widgets, features, entities, shared)
+- App.tsx переносимо до src/app/
+- index.js коригуємо у відповідності до змін (import App from './src/app/App';)
+
+Пробний запуск - відкриваємо термінал
+npx react-native run-android
