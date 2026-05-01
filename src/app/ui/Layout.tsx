@@ -1,4 +1,3 @@
-import "./LayoutStyle";
 import { Text, TouchableOpacity, View } from "react-native";
 import LayoutStyle from "./LayoutStyle";
 import { useContext } from "react";
