@@ -1,4 +1,4 @@
-import { Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import LayoutStyle from "./LayoutStyle";
 import { useContext } from "react";
 import AppContext from "../../features/context/AppContext";
@@ -7,8 +7,10 @@ import Calc from "../../pages/calc/Calc";
 
 export default function Layout() {
     const {navigate, activeRoute} = useContext(AppContext);
+    const {width, height} = useWindowDimensions();
 
     return <>
+    {width < height && 
         <View style={LayoutStyle.topBar}>
             <TouchableOpacity onPress={() => navigate("-1")}>
                 <Text style={LayoutStyle.topBarBack}>〈</Text>
@@ -16,7 +18,7 @@ export default function Layout() {
             <Text style={LayoutStyle.topBarText}>React Native Intro</Text>
             <Text>  </Text>
         </View>
-
+    }
         <View style={LayoutStyle.content}>
             { activeRoute.page == "home" ? <Home />
             : activeRoute.page == "calc" ? <Calc />
@@ -24,6 +26,7 @@ export default function Layout() {
             }
         </View>
 
+    {width < height &&         
         <View style={LayoutStyle.bottomBar}>
             <TouchableOpacity onPress={() => navigate("home")}>
                 <Text>Home</Text>
@@ -34,5 +37,6 @@ export default function Layout() {
             </TouchableOpacity>
 
         </View>
+    }
     </>;
 }
