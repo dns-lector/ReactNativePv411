@@ -29,6 +29,11 @@ const LayoutStyle = StyleSheet.create({
         justifyContent: "space-evenly",
         alignItems: "center",
     },
+    bottomBarImg: {
+        height: 34.0,
+        width: 34.0,
+        tintColor: Colors.onPrimary,
+    },
 });
 
 export default LayoutStyle;

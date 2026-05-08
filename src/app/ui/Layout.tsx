@@ -1,9 +1,10 @@
-import { Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { Image, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import LayoutStyle from "./LayoutStyle";
 import { useContext } from "react";
 import AppContext from "../../features/context/AppContext";
 import Home from "../../pages/home/Home";
 import Calc from "../../pages/calc/Calc";
+import Rate from "../../pages/rate/Rate";
 
 export default function Layout() {
     const {navigate, activeRoute} = useContext(AppContext);
@@ -22,6 +23,7 @@ export default function Layout() {
         <View style={LayoutStyle.content}>
             { activeRoute.page == "home" ? <Home />
             : activeRoute.page == "calc" ? <Calc />
+            : activeRoute.page == "rate" ? <Rate />
             : <Text>Not found</Text>
             }
         </View>
@@ -29,11 +31,21 @@ export default function Layout() {
     {width < height &&         
         <View style={LayoutStyle.bottomBar}>
             <TouchableOpacity onPress={() => navigate("home")}>
-                <Text>Home</Text>
+                <Image 
+                    style={LayoutStyle.bottomBarImg}
+                    source={require("../../features/assets/img/home.png")} />
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => navigate("calc")}>
-                <Text>Calc</Text>
+                <Image 
+                    style={LayoutStyle.bottomBarImg}
+                    source={require("../../features/assets/img/calc.png")} />
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => navigate("rate")}>
+                <Image 
+                    style={LayoutStyle.bottomBarImg}
+                    source={require("../../features/assets/img/rate.png")} />
             </TouchableOpacity>
 
         </View>
