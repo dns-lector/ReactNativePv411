@@ -1,11 +1,15 @@
-import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import RateStyle from "./ui/RateStyle";
 import { useEffect, useState } from "react";
 import NbuDao from "../../entities/nbu/api/NbuDao";
 import INbuRate from "../../entities/nbu/model/INbuRate";
+import DatePicker from 'react-native-date-picker';
+
 
 export default function Rate() {
     const [rates, setRates] = useState<Array<INbuRate>>([]);
+    const [date, setDate] = useState(new Date())
+    const [open, setOpen] = useState(false)
 
     useEffect(() => {
         // fetch() - bad practice
@@ -15,8 +19,27 @@ export default function Rate() {
         .catch(console.error);
     }, []);
 
+    useEffect(() => {
+        if(rates.length > 0) {            
+            setDate( Date.fromDotted(rates[0].exchangedate) );
+        }
+    }, [rates]);
+
     return <View style={RateStyle.container}>
-        <Text style={RateStyle.pageTitle}>Курси НБУ</Text>
+        <View style={RateStyle.titleRow}>
+            <View style={RateStyle.searchView}>
+                <Image 
+                    source={require("../../features/assets/img/search.png")}
+                    style={RateStyle.searchImg} />
+                <TextInput 
+                    style={RateStyle.searchInput} />    
+            </View>
+            <Text style={RateStyle.pageTitle}>Курси НБУ</Text>
+            <TouchableOpacity  style={RateStyle.rateDateBtn} onPress={() => setOpen(true)}>
+                <Text style={RateStyle.rateDate}>{date.toDotted()}</Text>
+            </TouchableOpacity>
+        </View>
+        
         <ScrollView style={RateStyle.ratesContainer}>
             {rates.map((r,i) => 
             <TouchableOpacity 
@@ -38,6 +61,20 @@ export default function Rate() {
                 <Text style={RateStyle.rateItemRate}>{r.rate}</Text>
             </TouchableOpacity>)}
         </ScrollView>
+
+        <DatePicker
+            modal
+            mode="date"
+            open={open}
+            date={date}
+            onConfirm={(date) => {
+                setOpen(false);
+                setDate(date);
+            }}
+            onCancel={() => {
+                setOpen(false);
+            }}
+        />
     </View>;
 }
 
@@ -52,10 +89,11 @@ export default function Rate() {
    з компонента, який відповідає за представлення (UI)
 */
 /*
-Д.З. Реалізувати адаптивне масштабування курсів, що 
-виводяться у повідомленні:
- - якщо курс валюти дуже малий, то підбирати масштабний множник (кратний 10: 100, 1000)
-    (1 грн = 0.0211 дол --> 100 грн = 2.11 дол)
- - при протилежному відношенні масштабувати іншу валюту
+Д.З. Реалізувати обмеження на введення дати для курсів валют:
+курси змінюються о 16:00, до цього часу можна вибрати максимум
+  сьогоднішню дату
+АЛЕ вихідні дні пропускаються і курс встановлюєтья на наступний 
+  робочий день. Тобто після 16:00 Пт можна вибирати дати до 
+  наступного понеділка  
 Додавати скріншоти результатів    
 */

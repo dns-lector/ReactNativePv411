@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 import IRoute from '../features/router/model/IRoute';
 import { BackHandler } from 'react-native';
 import AppContext from '../features/context/AppContext';
+import "../shared/extensions/DateExtensions";
+import "../shared/extensions/NumberExtensions";
 
 export default function App() {
   const [history, setHistory] = useState<Array<IRoute>>([]);
@@ -43,7 +45,7 @@ export default function App() {
     return true;
   }; 
 
-  useEffect(() => { console.log(history) }, [history]);
+  // useEffect(() => { console.log(history) }, [history]);
 
   useEffect(() => { 
     const handler = BackHandler.addEventListener('hardwareBackPress', backAction);
