@@ -8,16 +8,19 @@ import DatePicker from 'react-native-date-picker';
 
 export default function Rate() {
     const [rates, setRates] = useState<Array<INbuRate>>([]);
+    const [ratesShown, setRatesShown] = useState<Array<INbuRate>>([]);
+    const [fragment, setFragment] = useState<string>("");
     const [date, setDate] = useState(new Date())
     const [open, setOpen] = useState(false)
 
-    useEffect(() => {
-        // fetch() - bad practice
-        NbuDao    // good practice
-        .loadRates()
+    const updateRates = (dt?:Date|undefined) => {
+        NbuDao 
+        .loadRates(dt)
         .then(setRates)
         .catch(console.error);
-    }, []);
+    };
+
+    useEffect(updateRates, []);
 
     useEffect(() => {
         if(rates.length > 0) {            
@@ -25,13 +28,32 @@ export default function Rate() {
         }
     }, [rates]);
 
+    const filter = () => {
+        if(fragment == "") { 
+            setRatesShown([...rates]);
+        }
+        else {
+            setRatesShown(rates.filter(r => r.cc.includes(fragment)));
+            /*
+            Д.З. Удосконалити алгоритм пошуку (фільтру) курсів валют:
+            - шукати введений фрагмент як у скороченій, так і у повній назві
+            - впровадити реєстронезалежність пошуку
+            - додати також порівняння з r-030 кодом
+            */
+        }
+    };
+
+    useEffect(filter, [fragment, rates]);
+
     return <View style={RateStyle.container}>
         <View style={RateStyle.titleRow}>
             <View style={RateStyle.searchView}>
                 <Image 
                     source={require("../../features/assets/img/search.png")}
                     style={RateStyle.searchImg} />
-                <TextInput 
+                <TextInput
+                    value={fragment}
+                    onChangeText={setFragment}
                     style={RateStyle.searchInput} />    
             </View>
             <Text style={RateStyle.pageTitle}>Курси НБУ</Text>
@@ -41,7 +63,7 @@ export default function Rate() {
         </View>
         
         <ScrollView style={RateStyle.ratesContainer}>
-            {rates.map((r,i) => 
+            {ratesShown.map((r,i) => 
             <TouchableOpacity 
                 key={r.cc} 
                 style={[
@@ -69,7 +91,7 @@ export default function Rate() {
             date={date}
             onConfirm={(date) => {
                 setOpen(false);
-                setDate(date);
+                updateRates(date);
             }}
             onCancel={() => {
                 setOpen(false);
