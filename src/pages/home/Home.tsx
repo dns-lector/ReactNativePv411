@@ -27,5 +27,14 @@ export default function Home() {
             </Text>
         </TouchableOpacity>
 
+        <TouchableOpacity style={HomeStyle.item} onPress={() => navigate("anim")}>
+            <Image
+                style={HomeStyle.img}
+                source={require("../../features/assets/img/anim.png")} />
+            <Text style={HomeStyle.text}>
+                Анімації
+            </Text>
+        </TouchableOpacity>
+
     </View>;
 }
