@@ -36,5 +36,14 @@ export default function Home() {
             </Text>
         </TouchableOpacity>
 
+        <TouchableOpacity style={HomeStyle.item} onPress={() => navigate("game")}>
+            <Image
+                style={HomeStyle.img}
+                source={require("../../features/assets/img/game.jpg")} />
+            <Text style={HomeStyle.text}>
+                Жести. Гра.
+            </Text>
+        </TouchableOpacity>
+
     </View>;
 }

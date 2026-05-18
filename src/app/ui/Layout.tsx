@@ -6,6 +6,7 @@ import Home from "../../pages/home/Home";
 import Calc from "../../pages/calc/Calc";
 import Rate from "../../pages/rate/Rate";
 import Anim from "../../pages/anim/Anim";
+import Game from "../../pages/game/Game";
 
 export default function Layout() {
     const {navigate, activeRoute} = useContext(AppContext);
@@ -25,6 +26,7 @@ export default function Layout() {
             { activeRoute.page == "home" ? <Home />
             : activeRoute.page == "anim" ? <Anim />
             : activeRoute.page == "calc" ? <Calc />
+            : activeRoute.page == "game" ? <Game />
             : activeRoute.page == "rate" ? <Rate />
             : <Text>Not found</Text>
             }
@@ -54,6 +56,12 @@ export default function Layout() {
                 <Image 
                     style={LayoutStyle.bottomBarImg}
                     source={require("../../features/assets/img/anim.png")} />
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => navigate("game")}>
+                <Image 
+                    style={LayoutStyle.bottomBarImg}
+                    source={require("../../features/assets/img/game.jpg")} />
             </TouchableOpacity>
 
         </View>
