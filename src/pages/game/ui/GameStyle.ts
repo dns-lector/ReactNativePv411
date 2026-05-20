@@ -52,7 +52,20 @@ const GameStyle = StyleSheet.create({
     field: {
         backgroundColor: "#A49381",
         borderRadius: 5.0,
-    }
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "space-evenly",
+        alignItems: "center",
+        alignContent: "space-evenly",
+    },
+    tile: {
+        borderRadius: 5.0,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    tileText: {
+        fontWeight: 900,
+    },
 });
 
 export default GameStyle;
