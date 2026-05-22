@@ -1,13 +1,16 @@
 import { GestureResponderEvent, Pressable, Text, TouchableOpacity, TouchableWithoutFeedback, useWindowDimensions, View } from "react-native";
 import GameStyle from "./ui/GameStyle";
-import { ReactNode, useRef, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import GameColors from "./ui/GameColors";
+import RNFS from "react-native-fs";
+import Base64 from "../../shared/base64/Base64";
 
 interface IGameState {
     label: string,
     score: number,
     field: Array<number>,
     prevField: Array<number>|null,
+    bestScore: number,
 }
 
 export default function Game() {
@@ -18,6 +21,7 @@ export default function Game() {
     const [gameState, setGameState] = useState<IGameState>({
         label: "Hello",
         score: 0,
+        bestScore: 200,
         field: [
             0, 0, 2, 0,
             2, 0, 2, 2,
@@ -26,6 +30,62 @@ export default function Game() {
         ],
         prevField: null,
     });
+
+    const encryptScore = (score:number):string => {
+        // захист: обчислюємо код числа (base64 або хеш)
+        // додаємо разом з числом через роздільний знак
+        // перетворюємо з паролем
+        let str = score.toString();
+        str += ' ' + Base64.encode(str);
+        str = Base64.encode(str);
+        return str;
+    };
+    const decryptScore = (enc:string):number|null => {
+        let str = Base64.decode(enc);
+        let parts = str.split(' ');
+        if(parts.length != 2) return null;
+        if(Base64.encode(parts[0]) != parts[1]) return null;
+        return Number(parts[0]);
+    }
+
+    const loadBestScore = async () => {
+        const path = RNFS.DocumentDirectoryPath + "/best.score";
+        if(await RNFS.exists(path)) {
+            const content = await RNFS.readFile(path, 'utf8');
+            // console.log(content);
+            const score = decryptScore(content);
+            if(score) {
+                setGameState({...gameState, bestScore: score});
+            }
+        }
+        else {
+            let str = encryptScore(gameState.bestScore);
+            RNFS.writeFile(path, str, 'utf8');
+        }
+    };
+
+    useEffect(() => {
+        loadBestScore();
+    }, []);
+
+    const spawnTile = () => {
+        // збираємо інформацію про індекси всіх порожніх комірок
+        const freeTiles = [];
+        for(let i=0; i < N*N; i++) {
+            if(gameState.field[i] == 0) {
+                freeTiles.push(i);
+            }
+        }
+        // перевіряємо що хоч щось знайшлось, інакше - кінець гри
+        if(freeTiles.length == 0) {
+            return;
+        }
+        // вибираємо випадковий елемент масиву
+        const rndIndex = freeTiles[Math.floor( Math.random() * freeTiles.length )];
+        // встановлюємо йому значення: 2 з імовірністю 0.9, 4 - 0.1
+        gameState.field[rndIndex] = Math.random() < 0.1 ? 4 : 2;
+        // setGameState({...gameState});
+    }
 
     const canMoveLeft = ():boolean => {
         // рух можливий якщо ліворуч від хоч одної ненульової комірки є або ноль або таке ж значення
@@ -93,18 +153,79 @@ export default function Game() {
             // зберігаємо поле для можливості відновлення
             // ...
             const prevField = [...gameState.field];
+            gameState.score += moveLeft();
+            spawnTile();
             setGameState({...gameState,
-                score: gameState.score + moveLeft(),
                 label: "горизонтальний ліворуч",
-                field: gameState.field,
                 prevField
             });
         } 
         else setGameState({...gameState, label: "рух ліворуч неможливий"});
     };
+
+    const canMoveRight = ():boolean => {
+        // рух можливий якщо праворуч від хоч одної ненульової комірки є або ноль або таке ж значення
+        for(let r = 0; r < N; r++) {
+            for(let c = 0; c < N-1; c++) {
+                let i = r * N + c;
+                if(gameState.field[i] != 0 && (
+                    gameState.field[i+1] == gameState.field[i] || 
+                    gameState.field[i+1] == 0)
+                ) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+    const shiftRight = ():void => {
+        let wasMove:boolean;
+        let i:number;
+        for(let r = 0; r < N; r++) { 
+            do {       
+                wasMove = false;     
+                for(let c = 1; c < N; c++) {
+                    i = r * N + c;
+                    if(gameState.field[i] == 0 && gameState.field[i-1] != 0) {
+                        gameState.field[i] = gameState.field[i-1];
+                        gameState.field[i-1] = 0;
+                        wasMove = true;
+                    }
+                }
+            } while(wasMove);
+        }
+    }
+    const moveRight = ():number => {
+        let collapsed = 0;
+        shiftRight();
+        for(let r = 0; r < N; r++) { 
+            for(let c = N-1; c > 0; c--) {   // [0222] -> [0024]
+                let i = r * N + c;
+                if(gameState.field[i] != 0 && gameState.field[i-1] == gameState.field[i]) {
+                    gameState.field[i] *= 2;
+                    gameState.field[i-1] = 0;
+                    collapsed += gameState.field[i];
+                }
+            }
+        }
+        if(collapsed > 0) {
+            shiftRight();
+        }
+        return collapsed;
+    };
     const onSwipeRight = () => {
-        //setLabel("горизонтальний праворуч");
+        if(canMoveRight()) {
+            const prevField = [...gameState.field];
+            gameState.score += moveRight(),
+            spawnTile();
+            setGameState({...gameState,
+                label: "горизонтальний праворуч",
+                prevField
+            });
+        } 
+        else setGameState({...gameState, label: "рух праворуч неможливий"});
     }; 
+
     const onSwipeTop = () => {
         //setLabel("вертикальний вгору");
     }; 
@@ -121,7 +242,7 @@ export default function Game() {
             <View style={GameStyle.topNav}>
                 <View style={GameStyle.topScoreLine}>
                     <Text style={GameStyle.topScore}>SCORE{"\n" + gameState.score}</Text>
-                    <Text style={GameStyle.topScore}>BEST{"\n"}69.6k</Text>
+                    <Text style={GameStyle.topScore}>BEST{"\n" + gameState.bestScore}</Text>
                 </View>
                 <View style={GameStyle.topBtnLine}>
                     <Pressable style={GameStyle.topBtn}><Text style={GameStyle.topBtnText}>NEW</Text></Pressable>
@@ -228,3 +349,11 @@ function Swipeable({onSwipeLeft, onSwipeRight, onSwipeTop, onSwipeBottom, onUnre
     </TouchableWithoutFeedback>;
 }
 
+/*
+Д.З. Реалізувати збереження інформації про час, що пройшов 
+після виходу з гри. 
+Додати хук руйнування елементу, в ньому зберегти мітку часу. 
+При створенні елемента зчитувати збережену мітку та виводити
+(label) повідомлення: 
+ви були поза грою протягом хх днів, хх годин, хх хвилин
+*/
