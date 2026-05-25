@@ -1,9 +1,28 @@
-import { GestureResponderEvent, Pressable, Text, TouchableOpacity, TouchableWithoutFeedback, useWindowDimensions, View } from "react-native";
+import { Animated, GestureResponderEvent, Pressable, Text, TouchableOpacity, TouchableWithoutFeedback, useWindowDimensions, View } from "react-native";
 import GameStyle from "./ui/GameStyle";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import GameColors from "./ui/GameColors";
 import RNFS from "react-native-fs";
 import Base64 from "../../shared/base64/Base64";
+
+const Directions = {
+  left:   "left",
+  right:  "right",
+  top:    "top",  
+  bottom: "bottom",  
+} as const;
+
+type Directions = typeof Directions[keyof typeof Directions]
+
+const TileAnimations = {
+  none:     "none",
+  spawn:    "spawn",
+  collapse: "collapse",
+} as const;
+
+type TileAnimations = typeof TileAnimations[keyof typeof TileAnimations]
+
+
 
 interface IGameState {
     label: string,
@@ -11,7 +30,11 @@ interface IGameState {
     field: Array<number>,
     prevField: Array<number>|null,
     bestScore: number,
+    anim: Array<TileAnimations>, 
 }
+
+const opacityValues = Array.from({length:16}, () => new Animated.Value(1.0));
+const scaleValues = Array.from({length:16}, () => new Animated.Value(1.0));
 
 export default function Game() {
     const {width, height} = useWindowDimensions();
@@ -29,6 +52,7 @@ export default function Game() {
             2, 2, 2, 2
         ],
         prevField: null,
+        anim: Array.from({length:N*N}, () => TileAnimations.none),
     });
 
     const encryptScore = (score:number):string => {
@@ -84,7 +108,95 @@ export default function Game() {
         const rndIndex = freeTiles[Math.floor( Math.random() * freeTiles.length )];
         // встановлюємо йому значення: 2 з імовірністю 0.9, 4 - 0.1
         gameState.field[rndIndex] = Math.random() < 0.1 ? 4 : 2;
-        // setGameState({...gameState});
+        // запускаємо анімацію появи на елементі з індексом rndIndex
+        gameState.anim[rndIndex] = TileAnimations.spawn;
+    }
+
+    const animateField = () => {
+        for(let i = 0; i < N * N; i++) {
+            if(gameState.anim[i] == TileAnimations.spawn) {
+                Animated.sequence([
+                    Animated.timing(opacityValues[i], {
+                        toValue: 0.1,
+                        duration: 0,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(opacityValues[i], {
+                        toValue: 1.0,
+                        duration: 300,
+                        useNativeDriver: true,
+                    }),
+                ]).start();
+            }
+            else if(gameState.anim[i] == TileAnimations.collapse) {
+                Animated.sequence([
+                    Animated.timing(scaleValues[i], {
+                        toValue: 1.15,
+                        duration: 150,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(scaleValues[i], {
+                        toValue: 1.0,
+                        duration: 150,
+                        useNativeDriver: true,
+                    })
+                ]).start();
+            }
+            gameState.anim[i] = TileAnimations.none;
+        }
+    }
+
+    const shift = (index1:number, index2:number):boolean => {
+        if(gameState.field[index1] == 0 && gameState.field[index2] != 0) {
+            gameState.field[index1] = gameState.field[index2];
+            gameState.field[index2] = 0;
+            gameState.anim[index1] = gameState.anim[index2];
+            gameState.anim[index2] = TileAnimations.none;
+            return true;
+        }
+        return false;
+    }
+
+    const collapse = (index1:number, index2:number):number => {
+        if(gameState.field[index1] != 0 && gameState.field[index2] == gameState.field[index1]) {
+            gameState.field[index1] += gameState.field[index2];
+            gameState.field[index2] = 0;
+            gameState.anim[index1] = TileAnimations.collapse;
+            return gameState.field[index1];
+        }
+        return 0;
+    }
+
+    const canMove = (direction:Directions):boolean => {
+        switch(direction) {
+            case Directions.left:   return canMoveLeft();
+            case Directions.right:  return canMoveRight();
+            case Directions.top:    return canMoveTop();
+            case Directions.bottom: return canMoveBottom();
+        }
+        throw "Unknown direction";
+    }
+    const moveScore = (direction:Directions):number => {
+        switch(direction) {
+            case Directions.left:   return moveLeft();
+            case Directions.right:  return moveRight();
+            case Directions.top:    return moveTop();
+            case Directions.bottom: return moveBottom();
+        }
+        throw "Unknown direction";  
+    }
+    const move = (direction:Directions) => {
+        if(canMove(direction)) {
+            const prevField = [...gameState.field];
+            gameState.score += moveScore(direction);            
+            spawnTile();
+            animateField();
+            setGameState({...gameState,
+                label: "move " + direction,
+                prevField
+            });
+        } 
+        else setGameState({...gameState, label: "NO MOVE " + direction});
     }
 
     const canMoveLeft = ():boolean => {
@@ -111,11 +223,7 @@ export default function Game() {
                 wasMove = false;     
                 for(let c = 0; c < N-1; c++) {
                     i = r * N + c;
-                    if(gameState.field[i] == 0 && gameState.field[i+1] != 0) {
-                        gameState.field[i] = gameState.field[i+1];
-                        gameState.field[i+1] = 0;
-                        wasMove = true;
-                    }
+                    wasMove ||= shift(i, i+1);
                 }
             } while(wasMove);
         }
@@ -135,11 +243,7 @@ export default function Game() {
             // 2. Виконуємо злиття
             for(let c = 0; c < N-1; c++) {
                 let i = r * N + c;
-                if(gameState.field[i] != 0 && gameState.field[i+1] == gameState.field[i]) {
-                    gameState.field[i] += gameState.field[i+1];
-                    gameState.field[i+1] = 0;
-                    collapsed += gameState.field[i];
-                }
+                collapsed += collapse(i, i+1);
             }
         }
         // 3. Переміщуємо усе "ліворуч" після злиття
@@ -147,20 +251,6 @@ export default function Game() {
             shiftLeft();
         }
         return collapsed;
-    };
-    const onSwipeLeft = () => {
-        if(canMoveLeft()) {
-            // зберігаємо поле для можливості відновлення
-            // ...
-            const prevField = [...gameState.field];
-            gameState.score += moveLeft();
-            spawnTile();
-            setGameState({...gameState,
-                label: "горизонтальний ліворуч",
-                prevField
-            });
-        } 
-        else setGameState({...gameState, label: "рух ліворуч неможливий"});
     };
 
     const canMoveRight = ():boolean => {
@@ -186,11 +276,7 @@ export default function Game() {
                 wasMove = false;     
                 for(let c = 1; c < N; c++) {
                     i = r * N + c;
-                    if(gameState.field[i] == 0 && gameState.field[i-1] != 0) {
-                        gameState.field[i] = gameState.field[i-1];
-                        gameState.field[i-1] = 0;
-                        wasMove = true;
-                    }
+                    wasMove ||= shift(i, i-1);
                 }
             } while(wasMove);
         }
@@ -201,38 +287,100 @@ export default function Game() {
         for(let r = 0; r < N; r++) { 
             for(let c = N-1; c > 0; c--) {   // [0222] -> [0024]
                 let i = r * N + c;
-                if(gameState.field[i] != 0 && gameState.field[i-1] == gameState.field[i]) {
-                    gameState.field[i] *= 2;
-                    gameState.field[i-1] = 0;
-                    collapsed += gameState.field[i];
-                }
+                collapsed += collapse(i, i-1);
             }
         }
         if(collapsed > 0) {
             shiftRight();
         }
         return collapsed;
+    }; 
+    
+    const canMoveTop = ():boolean => {
+        // рух можливий якщо з гори від хоч одної ненульової комірки є або ноль або таке ж значення
+        for(let r = 1; r < N; r++) {
+            for(let c = 0; c < N; c++) {
+                let i = r * N + c;
+                if(gameState.field[i] != 0 && (
+                    gameState.field[i-N] == gameState.field[i] || 
+                    gameState.field[i-N] == 0)
+                ) {
+                    return true;
+                }
+            }
+        }
+        return false;
     };
-    const onSwipeRight = () => {
-        if(canMoveRight()) {
-            const prevField = [...gameState.field];
-            gameState.score += moveRight(),
-            spawnTile();
-            setGameState({...gameState,
-                label: "горизонтальний праворуч",
-                prevField
-            });
-        } 
-        else setGameState({...gameState, label: "рух праворуч неможливий"});
-    }; 
-
-    const onSwipeTop = () => {
-        //setLabel("вертикальний вгору");
-    }; 
-    const onSwipeBottom = () => {
-        //setLabel("вертикальний вниз");
+    const shiftTop = ():void => {
+        let wasMove:boolean;
+        let i:number;
+        for(let c = 0; c < N; c++) { 
+            do {       
+                wasMove = false;     
+                for(let r = 1; r < N; r++) {
+                    i = r * N + c;
+                    wasMove ||= shift(i-N, i);  // shift( ind(r-1,c), ind(r,c) )
+                }
+            } while(wasMove);
+        }
+    }
+    const moveTop = ():number => {
+        let collapsed = 0;
+        shiftTop();
+        for(let c = 0; c < N; c++) {
+            for(let r = 1; r < N; r++) {
+                let i = r * N + c;
+                collapsed += collapse(i-N, i);
+            }
+        }
+        if(collapsed > 0) {
+            shiftTop();
+        }
+        return collapsed;
     };
     
+    const canMoveBottom = ():boolean => {
+        for(let r = 0; r < N-1; r++) {
+            for(let c = 0; c < N; c++) {
+                let i = r * N + c;
+                if(gameState.field[i] != 0 && (
+                    gameState.field[i+N] == gameState.field[i] || 
+                    gameState.field[i+N] == 0)
+                ) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+    const shiftBottom = ():void => {
+        let wasMove:boolean;
+        let i:number;
+        for(let c = 0; c < N; c++) { 
+            do {       
+                wasMove = false;     
+                for(let r = N-1; r > 0; r--) {
+                    i = r * N + c;
+                    wasMove ||= shift(i, i-N);  // shift( ind(r-1,c), ind(r,c) )
+                }
+            } while(wasMove);
+        }
+    }
+    const moveBottom = ():number => {
+        let collapsed = 0;
+        shiftBottom();
+        for(let c = 0; c < N; c++) {
+            for(let r = N-1; r > 0; r--) {
+                let i = r * N + c;
+                collapsed += collapse(i, i-N);
+            }
+        }
+        if(collapsed > 0) {
+            shiftBottom();
+        }
+        return collapsed;
+    };
+
 
     return <View style={GameStyle.container}>
         <View style={GameStyle.topBlock}>
@@ -253,14 +401,20 @@ export default function Game() {
 
         <Text  style={GameStyle.label}>{gameState.label}</Text>
 
-        <Swipeable onSwipeBottom={onSwipeBottom} onSwipeLeft={onSwipeLeft} onSwipeRight={onSwipeRight}
-                   onSwipeTop={onSwipeTop}>
+        <Swipeable 
+                onSwipeBottom={ () => move(Directions.bottom)} 
+                onSwipeLeft={ () => move(Directions.left)} 
+                onSwipeRight={ () => move(Directions.right)}
+                onSwipeTop={ () => move(Directions.top)}>
+
             <View style={[GameStyle.field, {width: fieldSize, height: fieldSize}]}>
-                {gameState.field.map((num, index) => <View key={index}
+                {gameState.field.map((num, index) => <Animated.View key={index}
                     style={[GameStyle.tile, {
                         backgroundColor: GameColors.bgColor(num),
                         width: 0.21 * fieldSize,
                         height: 0.21 * fieldSize,
+                        opacity: opacityValues[index],
+                        transform: [{scale: scaleValues[index]}],
                     }]}>
                     <Text style={[GameStyle.tileText, {
                         color: GameColors.fgColor(num),
@@ -270,7 +424,7 @@ export default function Game() {
                         : num < 10000 ? fieldSize * 0.07
                         : fieldSize * 0.06,
                     }]}>{num}</Text>
-                </View>)}
+                </Animated.View>)}
             </View>
         </Swipeable> 
     
@@ -356,4 +510,10 @@ function Swipeable({onSwipeLeft, onSwipeRight, onSwipeTop, onSwipeBottom, onUnre
 При створенні елемента зчитувати збережену мітку та виводити
 (label) повідомлення: 
 ви були поза грою протягом хх днів, хх годин, хх хвилин
+*/
+/*
+Д.З. Реалізувати функцію, що визначає загальний індекс комірки
+за її рядком та колонкою. Модифікувати вирази програми з 
+використанням нової ф-ції
+shift(i-N, i) -> shift( ind(r-1,c), ind(r,c) )
 */
