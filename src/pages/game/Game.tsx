@@ -28,32 +28,44 @@ interface IGameState {
     label: string,
     score: number,
     field: Array<number>,
-    prevField: Array<number>|null,
+    prevState: IGameState|null,
     bestScore: number,
     anim: Array<TileAnimations>, 
+    isBestScore: boolean,
 }
 
 const opacityValues = Array.from({length:16}, () => new Animated.Value(1.0));
 const scaleValues = Array.from({length:16}, () => new Animated.Value(1.0));
+const bestScoreScaleValue = new Animated.Value(1.0);
+const scaleAnimation = (value:Animated.Value) => Animated.sequence([
+    Animated.timing(value, {
+        toValue: 1.15,
+        duration: 150,
+        useNativeDriver: true,
+    }),
+    Animated.timing(value, {
+        toValue: 1.0,
+        duration: 150,
+        useNativeDriver: true,
+    })
+]);
+
+const initialGameState:IGameState = {
+    label: "Hello",
+    score: 0,
+    bestScore: 10,
+    field: [],
+    prevState: null,
+    anim: [],
+    isBestScore: false,
+}
 
 export default function Game() {
     const {width, height} = useWindowDimensions();
     const shortestSide = width < height ? width : height;
     const fieldSize = shortestSide * 0.95;
     const N = 4;   // розмірність поля
-    const [gameState, setGameState] = useState<IGameState>({
-        label: "Hello",
-        score: 0,
-        bestScore: 200,
-        field: [
-            0, 0, 2, 0,
-            2, 0, 2, 2,
-            0, 2, 0, 2,
-            2, 2, 2, 2
-        ],
-        prevField: null,
-        anim: Array.from({length:N*N}, () => TileAnimations.none),
-    });
+    const [gameState, setGameState] = useState<IGameState>(initialGameState);
 
     const encryptScore = (score:number):string => {
         // захист: обчислюємо код числа (base64 або хеш)
@@ -83,33 +95,53 @@ export default function Game() {
             }
         }
         else {
-            let str = encryptScore(gameState.bestScore);
-            RNFS.writeFile(path, str, 'utf8');
+            saveBestScore();
         }
     };
 
+    const saveBestScore = async () => {
+        const path = RNFS.DocumentDirectoryPath + "/best.score";
+        let str = encryptScore(gameState.bestScore);
+        RNFS.writeFile(path, str, 'utf8');
+    }
+
     useEffect(() => {
         loadBestScore();
+        newGame();
     }, []);
 
-    const spawnTile = () => {
+    const newGame = () => {
+        gameState.field = Array.from({length: N * N}, () => 0);
+        gameState.anim = Array.from({length: N * N}, () => TileAnimations.none);
+        spawnTile(2);
+        animateField();
+        setGameState({...initialGameState,
+            field: gameState.field,
+            anim: gameState.anim,
+            bestScore: gameState.bestScore,
+        });
+    }
+
+    const spawnTile = (cnt:number=1) => {
         // збираємо інформацію про індекси всіх порожніх комірок
         const freeTiles = [];
-        for(let i=0; i < N*N; i++) {
+        for(let i = 0; i < N * N; i++) {
             if(gameState.field[i] == 0) {
                 freeTiles.push(i);
             }
         }
         // перевіряємо що хоч щось знайшлось, інакше - кінець гри
-        if(freeTiles.length == 0) {
+        if(freeTiles.length < cnt) {
             return;
         }
-        // вибираємо випадковий елемент масиву
-        const rndIndex = freeTiles[Math.floor( Math.random() * freeTiles.length )];
-        // встановлюємо йому значення: 2 з імовірністю 0.9, 4 - 0.1
-        gameState.field[rndIndex] = Math.random() < 0.1 ? 4 : 2;
-        // запускаємо анімацію появи на елементі з індексом rndIndex
-        gameState.anim[rndIndex] = TileAnimations.spawn;
+        for(let i = 0; i < cnt; i++) {
+            // вибираємо випадковий елемент масиву
+            const rndIndex = freeTiles[Math.floor( Math.random() * freeTiles.length )];
+            // встановлюємо йому значення: 2 з імовірністю 0.9, 4 - 0.1
+            gameState.field[rndIndex] = Math.random() < 0.1 ? 4 : 2;
+            // запускаємо анімацію появи на елементі з індексом rndIndex
+            gameState.anim[rndIndex] = TileAnimations.spawn;
+        }
     }
 
     const animateField = () => {
@@ -129,20 +161,14 @@ export default function Game() {
                 ]).start();
             }
             else if(gameState.anim[i] == TileAnimations.collapse) {
-                Animated.sequence([
-                    Animated.timing(scaleValues[i], {
-                        toValue: 1.15,
-                        duration: 150,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(scaleValues[i], {
-                        toValue: 1.0,
-                        duration: 150,
-                        useNativeDriver: true,
-                    })
-                ]).start();
+                scaleAnimation(scaleValues[i]).start();
             }
             gameState.anim[i] = TileAnimations.none;
+        }
+        // animate best score
+        if(gameState.isBestScore) {
+            scaleAnimation(bestScoreScaleValue).start();
+            gameState.isBestScore = false;
         }
     }
 
@@ -187,13 +213,22 @@ export default function Game() {
     }
     const move = (direction:Directions) => {
         if(canMove(direction)) {
-            const prevField = [...gameState.field];
-            gameState.score += moveScore(direction);            
+            const prevState:IGameState = {...gameState,
+                field: [...gameState.field],
+                anim: [...gameState.anim],
+                prevState: null,
+            };
+            gameState.score += moveScore(direction);
+            if(gameState.score > gameState.bestScore) {
+                gameState.bestScore = gameState.score;
+                gameState.isBestScore = true;
+                saveBestScore();
+            }
             spawnTile();
             animateField();
             setGameState({...gameState,
                 label: "move " + direction,
-                prevField
+                prevState
             });
         } 
         else setGameState({...gameState, label: "NO MOVE " + direction});
@@ -381,6 +416,11 @@ export default function Game() {
         return collapsed;
     };
 
+    const undoButtonPress = () => {
+        if(gameState.prevState) {
+            setGameState({...gameState.prevState,});
+        }
+    };
 
     return <View style={GameStyle.container}>
         <View style={GameStyle.topBlock}>
@@ -390,11 +430,14 @@ export default function Game() {
             <View style={GameStyle.topNav}>
                 <View style={GameStyle.topScoreLine}>
                     <Text style={GameStyle.topScore}>SCORE{"\n" + gameState.score}</Text>
-                    <Text style={GameStyle.topScore}>BEST{"\n" + gameState.bestScore}</Text>
+                    <Animated.Text style={[
+                        GameStyle.topScore,
+                        {transform: [{scale: bestScoreScaleValue}]}
+                    ]}>BEST{"\n" + gameState.bestScore}</Animated.Text>
                 </View>
                 <View style={GameStyle.topBtnLine}>
-                    <Pressable style={GameStyle.topBtn}><Text style={GameStyle.topBtnText}>NEW</Text></Pressable>
-                    <TouchableOpacity style={GameStyle.topBtn}><Text style={GameStyle.topBtnText}>UNDO</Text></TouchableOpacity>
+                    <TouchableOpacity style={GameStyle.topBtn} onPress={newGame}><Text style={GameStyle.topBtnText}>NEW</Text></TouchableOpacity>
+                    <TouchableOpacity style={GameStyle.topBtn} onPress={undoButtonPress}><Text style={GameStyle.topBtnText}>UNDO</Text></TouchableOpacity>
                 </View>
             </View>
         </View>
@@ -512,8 +555,9 @@ function Swipeable({onSwipeLeft, onSwipeRight, onSwipeTop, onSwipeBottom, onUnre
 ви були поза грою протягом хх днів, хх годин, хх хвилин
 */
 /*
-Д.З. Реалізувати функцію, що визначає загальний індекс комірки
-за її рядком та колонкою. Модифікувати вирази програми з 
-використанням нової ф-ції
-shift(i-N, i) -> shift( ind(r-1,c), ind(r,c) )
+Д.З. Реалізувати анімацію масштабу при побитті рекорду
+також на саме поле score.
+Модифікувати роботу відновлення попереднього стану - 
+враховувати, що воно може понизити рекорд, що слід
+відобразити на збереженому файлі
 */
